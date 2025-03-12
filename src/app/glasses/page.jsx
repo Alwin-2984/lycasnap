@@ -5,7 +5,7 @@ import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import Link from "next/link";
 import Glasses3D from "../../components/Glasses3D";
 
-export default function Home() {
+export default function VirtualTryOnComponent() {
   // Refs for video and canvas
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -20,6 +20,16 @@ export default function Home() {
   // State for glasses visibility and detected landmarks
   const [glassesVisible, setGlassesVisible] = useState(true);
   const [faceLandmarks, setFaceLandmarks] = useState(null);
+
+  // Add these new states for 3D model transformations
+  const [modelPosition, setModelPosition] = useState(null);
+  const [modelRotation, setModelRotation] = useState(null);
+  const [modelScale, setModelScale] = useState(null);
+  const [eyePositions, setEyePositions] = useState({
+    leftEye: null,
+    rightEye: null,
+    noseBridge: null
+  });
 
   useEffect(() => {
     initializeFaceLandmarker();
@@ -127,17 +137,47 @@ export default function Home() {
     if (results.faceLandmarks && results.faceLandmarks.length > 0) {
       setFaceLandmarks(results.faceLandmarks);
       
-      // Draw eye position dots for development
+      // Draw all facial landmarks
       const landmarks = results.faceLandmarks[0];
-      const leftEye = landmarks[33];
-      const rightEye = landmarks[263];
+      
+      // Draw all landmarks as small white dots
+      landmarks.forEach((landmark, index) => {
+        ctx.beginPath();
+        ctx.arc(
+          landmark.x * canvasRef.current.width,
+          landmark.y * canvasRef.current.height,
+          1.5, 0, 2 * Math.PI
+        );
+        
+        // Special colors for key landmarks
+        if (index === 39) {
+          // Left eye
+          ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+        } else if (index === 263) {
+          // Right eye
+          ctx.fillStyle = 'rgba(0, 0, 255, 0.7)';
+        } else if (index === 168) {
+          // Nose bridge
+          ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+        } else {
+          // All other landmarks
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        }
+        
+        ctx.fill();
+      });
+      
+      // Draw larger indicators for key points - using actual pupil centers
+const leftEye = landmarks[468];  // Actual pupil center for left eye
+const rightEye = landmarks[473]; // Actual pupil center for right eye
+const noseBridge = landmarks[168]; // Keep the same nose bridge point
       
       // Draw left eye dot (red)
       ctx.beginPath();
       ctx.arc(
         leftEye.x * canvasRef.current.width, 
         leftEye.y * canvasRef.current.height, 
-        8, 0, 2 * Math.PI
+        5, 0, 2 * Math.PI
       );
       ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
       ctx.fill();
@@ -147,12 +187,85 @@ export default function Home() {
       ctx.arc(
         rightEye.x * canvasRef.current.width, 
         rightEye.y * canvasRef.current.height, 
-        8, 0, 2 * Math.PI
+        5, 0, 2 * Math.PI
       );
       ctx.fillStyle = 'rgba(0, 0, 255, 0.7)';
       ctx.fill();
+      
+      // Draw nose bridge dot (green)
+      ctx.beginPath();
+      ctx.arc(
+        noseBridge.x * canvasRef.current.width, 
+        noseBridge.y * canvasRef.current.height, 
+        5, 0, 2 * Math.PI
+      );
+      ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+      ctx.fill();
+      
+      // Calculate 3D transformations (moved from Glasses3D component)
+      const factor = 5; // Same as conversion.factor in previous implementation
+      
+      // Convert to Three.js coordinates
+      const threeLeftEyeX = (leftEye.x * 2 - 1) * factor;
+      const threeLeftEyeY = -(leftEye.y * 2 - 1) * factor;
+      const threeRightEyeX = (rightEye.x * 2 - 1) * factor;
+      const threeRightEyeY = -(rightEye.y * 2 - 1) * factor;
+      const threeNoseBridgeX = (noseBridge.x * 2 - 1) * factor;
+      const threeNoseBridgeY = -(noseBridge.y * 2 - 1) * factor;
+      
+      // Calculate distance, scale, angles
+      const eyeDistance = Math.sqrt(
+        Math.pow((rightEye.x - leftEye.x) * canvasRef.current.width, 2) +
+        Math.pow((rightEye.y - leftEye.y) * canvasRef.current.height, 2)
+      );
+      
+      // Calculate scale and rotation
+      const scale = (eyeDistance / 20) * 5;
+      const tiltAngle = Math.atan2(
+        (rightEye.y - leftEye.y) * canvasRef.current.height,
+        (rightEye.x - leftEye.x) * canvasRef.current.width
+      );
+      const eyesZDiff = rightEye.z - leftEye.z;
+      const yawAngle = eyesZDiff * 3.0;
+      
+      // Update states with calculated values
+      setModelPosition({
+        x: threeNoseBridgeX, // Same as noseBridgeOffset.x
+        y: threeNoseBridgeY,
+        z: 0 // Same as glasses.z
+      });
+      
+      setModelRotation({
+        x: 0,
+        y: yawAngle,
+        z: -tiltAngle
+      });
+      
+      setModelScale(scale);
+      
+      setEyePositions({
+        leftEye: {
+          x: threeLeftEyeX,
+          y: threeLeftEyeY,
+          z: 0 // Same as markers.z
+        },
+        rightEye: {
+          x: threeRightEyeX,
+          y: threeRightEyeY,
+          z: 0
+        },
+        noseBridge: {
+          x: threeNoseBridgeX,
+          y: threeNoseBridgeY,
+          z: 0
+        }
+      });
     } else {
       setFaceLandmarks(null);
+      setModelPosition(null);
+      setModelRotation(null);
+      setModelScale(null);
+      setEyePositions({ leftEye: null, rightEye: null, noseBridge: null });
     }
 
     requestAnimationFrame(detect);
@@ -206,14 +319,19 @@ export default function Home() {
           }}
         ></canvas>
         {/* 3D Glasses Overlay */}
-        {faceLandmarks && (
-          <Glasses3D
-            faceLandmarks={faceLandmarks}
-            canvasWidth={canvasRef.current?.width || 640}
-            canvasHeight={canvasRef.current?.height || 480}
-            visible={glassesVisible}
-          />
-        )}
+        {faceLandmarks && modelPosition && (
+  <Glasses3D
+    modelPosition={modelPosition}
+    modelRotation={modelRotation}
+    modelScale={modelScale}
+    leftEyePosition={eyePositions.leftEye}
+    rightEyePosition={eyePositions.rightEye}
+    noseBridgePosition={eyePositions.noseBridge}
+    canvasWidth={canvasRef.current?.width}
+    canvasHeight={canvasRef.current?.height}
+    visible={glassesVisible}
+  />
+)}
       </div>
       <div className="flex flex-col md:flex-row mt-5 space-x-0 md:space-x-5">
         <button onClick={takeSnapshot} className="bg-[#F16B5E] text-white font-bold py-3 px-10 rounded-full">
