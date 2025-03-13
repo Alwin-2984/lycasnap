@@ -13,6 +13,14 @@ import Glasses3D from "../../components/Glasses3D";
 
 // New AdjustmentPanel component
 function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
+  // Add this state to track client-side rendering
+  const [isClient, setIsClient] = useState(false);
+  
+  // Set isClient to true after first render
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setAdjustmentSettings((prev) => ({
@@ -26,7 +34,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       <h2 className="text-lg font-bold mb-3">Adjustment Settings</h2>
       <div className="mb-3">
         <label>
-          Rotation Sensitivity: {adjustmentSettings.rotationSensitivity}
+          Rotation Sensitivity: {isClient ? adjustmentSettings.rotationSensitivity : ''}
         </label>
         <input
           type="range"
@@ -41,7 +49,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       </div>
       <div className="mb-3">
         <label>
-          Coordinate Factor: {adjustmentSettings.coordinateFactor}
+          Coordinate Factor: {isClient ? adjustmentSettings.coordinateFactor : ''}
         </label>
         <input
           type="range"
@@ -57,7 +65,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
 
       <div className="mb-3">
         <label>
-          Horizontal Sensitivity: {adjustmentSettings.horizontalSensitivity}
+          Horizontal Sensitivity: {isClient ? adjustmentSettings.horizontalSensitivity : ''}
         </label>
         <input
           type="range"
@@ -73,7 +81,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
 
       <div className="mb-3">
         <label>
-          Vertical Sensitivity: {adjustmentSettings.verticalSensitivity}
+          Vertical Sensitivity: {isClient ? adjustmentSettings.verticalSensitivity : ''}
         </label>
         <input
           type="range"
@@ -88,7 +96,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       </div>
 
       <div className="mb-3">
-        <label>X Offset: {adjustmentSettings.xOffset}</label>
+        <label>X Offset: {isClient ? adjustmentSettings.xOffset : ''}</label>
         <input
           type="range"
           name="xOffset"
@@ -102,7 +110,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       </div>
 
       <div className="mb-3">
-        <label>Y Offset: {adjustmentSettings.yOffset}</label>
+        <label>Y Offset: {isClient ? adjustmentSettings.yOffset : ''}</label>
         <input
           type="range"
           name="yOffset"
@@ -116,7 +124,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       </div>
 
       <div className="mb-3">
-        <label>Z Offset: {adjustmentSettings.zOffset}</label>
+        <label>Z Offset: {isClient ? adjustmentSettings.zOffset : ''}</label>
         <input
           type="range"
           name="zOffset"
@@ -130,7 +138,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       </div>
 
       <div className="mb-3">
-        <label>Yaw Multiplier: {adjustmentSettings.yawMultiplier}</label>
+        <label>Yaw Multiplier: {isClient ? adjustmentSettings.yawMultiplier : ''}</label>
         <input
           type="range"
           name="yawMultiplier"
@@ -144,7 +152,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       </div>
 
       <div className="mb-3">
-        <label>Tilt Multiplier: {adjustmentSettings.tiltMultiplier}</label>
+        <label>Tilt Multiplier: {isClient ? adjustmentSettings.tiltMultiplier : ''}</label>
         <input
           type="range"
           name="tiltMultiplier"
@@ -158,7 +166,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       </div>
 
       <div className="mb-3">
-        <label>Scale Divider: {adjustmentSettings.scaleDivider}</label>
+        <label>Scale Divider: {isClient ? adjustmentSettings.scaleDivider : ''}</label>
         <input
           type="range"
           name="scaleDivider"
@@ -172,7 +180,7 @@ function AdjustmentPanel({ adjustmentSettings, setAdjustmentSettings }) {
       </div>
 
       <div>
-        <label>Scale Multiplier: {adjustmentSettings.scaleMultiplier}</label>
+        <label>Scale Multiplier: {isClient ? adjustmentSettings.scaleMultiplier : ''}</label>
         <input
           type="range"
           name="scaleMultiplier"
@@ -215,19 +223,43 @@ export default function VirtualTryOnComponent() {
   const [modelScale, setModelScale] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [adjustmentSettings, setAdjustmentSettings] = useState({
-    coordinateFactor: 5,
-    horizontalSensitivity: 1,
-    verticalSensitivity: 0.7,
-    xOffset: 0,
-    yOffset: 0,
-    zOffset: 0,
-    yawMultiplier: 3.0,
-    tiltMultiplier: 1.0,
-    rotationSensitivity: 1.0, // New parameter for overall rotation sensitivity
-    scaleDivider: 20,
-    scaleMultiplier: 5,
+  const [adjustmentSettings, setAdjustmentSettings] = useState(() => {
+    // Try to load from localStorage first (if we're in the browser)
+    if (typeof window !== 'undefined') {
+      try {
+        const savedSettings = localStorage.getItem('glassesAdjustmentSettings');
+        if (savedSettings) {
+          return JSON.parse(savedSettings);
+        }
+      } catch (error) {
+        console.error('Error loading settings from localStorage:', error);
+      }
+    }
+    
+    // Default settings if nothing in localStorage or error occurred
+    return {
+      coordinateFactor: 5,           // Keeps normalized coordinates conversion
+      horizontalSensitivity: 1,
+      verticalSensitivity: 0.7,
+      xOffset: 0,
+      yOffset: 0,                    // Adjust if the glasses appear too high/low
+      zOffset: 15,                   // Increase this value (e.g. 15) to push the model further away
+      yawMultiplier: 3.0,
+      tiltMultiplier: 1.0,
+      rotationSensitivity: 1.0,
+      scaleDivider: 20,
+      scaleMultiplier: 5,
+    };
   });
+  
+  // Save to localStorage whenever settings change
+  useEffect(() => {
+    try {
+      localStorage.setItem('glassesAdjustmentSettings', JSON.stringify(adjustmentSettings));
+    } catch (error) {
+      console.error('Error saving settings to localStorage:', error);
+    }
+  }, [adjustmentSettings]);
   
   const adjustmentSettingsRef = useRef(adjustmentSettings);
   
@@ -479,9 +511,14 @@ export default function VirtualTryOnComponent() {
         const yawAngle = (rightEye.z - leftEye.z) * yawMultiplier;
   
         // Update transformation refs using offsets
-        modelPositionRef.current.x = threeNoseBridgeX + xOffset;
-        modelPositionRef.current.y = threeNoseBridgeY + yOffset;
-        modelPositionRef.current.z = zOffset;
+        // modelPositionRef.current.x = threeNoseBridgeX + xOffset;
+        // modelPositionRef.current.y = threeNoseBridgeY + yOffset;
+        // modelPositionRef.current.z = zOffset;
+
+        // When updating modelPosition in the detection loop:
+modelPositionRef.current.x = threeNoseBridgeX + xOffset;
+modelPositionRef.current.y = threeNoseBridgeY + yOffset;
+modelPositionRef.current.z = zOffset; // Set zOffset to a positive value, e.g., 10
   
         // modelRotationRef.current.x = 0;
         // modelRotationRef.current.y = yawAngle;

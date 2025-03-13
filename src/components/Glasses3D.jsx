@@ -22,10 +22,8 @@ function GlassesModel({
 
   // Set up camera with correct aspect ratio
   useEffect(() => {
-    // Set a fixed camera position
-    camera.position.z = 5;
-    
-    // Update camera aspect ratio to match the video canvas
+    // Increase camera distance to 7 instead of 5 (or adjust as needed)
+    camera.position.z = 1;
     if (canvasWidth && canvasHeight) {
       const aspect = canvasWidth / canvasHeight;
       if (camera instanceof THREE.PerspectiveCamera) {
